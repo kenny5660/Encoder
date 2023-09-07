@@ -111,6 +111,11 @@ IO_REG_TYPE directRead(volatile IO_REG_TYPE *base, IO_REG_TYPE pin)
 }
 #define DIRECT_PIN_READ(base, pin)      directRead(base, pin)
 
+#else
+#define IO_REG_TYPE                     pin_size_t
+#define PIN_TO_BASEREG(pin)             (0)
+#define PIN_TO_BITMASK(pin)             pin
+#define DIRECT_PIN_READ(base, pin)      digitalRead(pin)
 #endif
 
 #endif
