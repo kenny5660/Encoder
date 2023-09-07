@@ -76,21 +76,27 @@ typedef struct {
 class Encoder
 {
 public:
-	Encoder(uint8_t pin1, uint8_t pin2) {
+	Encoder(pin_size_t pin1, pin_size_t pin2) {
+
+          _pin1 = pin1;
+		  _pin2 = pin2;
+          encoder.pin1_register = PIN_TO_BASEREG(pin1);
+          encoder.pin1_bitmask = PIN_TO_BITMASK(pin1);
+          encoder.pin2_register = PIN_TO_BASEREG(pin2);
+          encoder.pin2_bitmask = PIN_TO_BITMASK(pin2);
+          encoder.position = 0;
+	}
+	void begin(){
 		#ifdef INPUT_PULLUP
-		pinMode(pin1, INPUT_PULLUP);
-		pinMode(pin2, INPUT_PULLUP);
+		pinMode(_pin1, INPUT_PULLUP);
+		pinMode(_pin2, INPUT_PULLUP);
 		#else
-		pinMode(pin1, INPUT);
-		digitalWrite(pin1, HIGH);
-		pinMode(pin2, INPUT);
-		digitalWrite(pin2, HIGH);
+		pinMode(_pin1, INPUT);
+		digitalWrite(_pin1, HIGH);
+		pinMode(_pin2, INPUT);
+		digitalWrite(_pin2, HIGH);
 		#endif
-		encoder.pin1_register = PIN_TO_BASEREG(pin1);
-		encoder.pin1_bitmask = PIN_TO_BITMASK(pin1);
-		encoder.pin2_register = PIN_TO_BASEREG(pin2);
-		encoder.pin2_bitmask = PIN_TO_BITMASK(pin2);
-		encoder.position = 0;
+
 		// allow time for a passive R-C filter to charge
 		// through the pullup resistors, before reading
 		// the initial state
@@ -100,8 +106,8 @@ public:
 		if (DIRECT_PIN_READ(encoder.pin2_register, encoder.pin2_bitmask)) s |= 2;
 		encoder.state = s;
 #ifdef ENCODER_USE_INTERRUPTS
-		interrupts_in_use = attach_interrupt(pin1, &encoder);
-		interrupts_in_use += attach_interrupt(pin2, &encoder);
+		interrupts_in_use = attach_interrupt(_pin1, &encoder);
+		interrupts_in_use += attach_interrupt(_pin2, &encoder);
 #endif
 		//update_finishup();  // to force linker to include the code (does not work)
 	}
@@ -156,7 +162,9 @@ private:
 #ifdef ENCODER_USE_INTERRUPTS
 	uint8_t interrupts_in_use;
 #endif
-public:
+    pin_size_t _pin1, _pin2;
+
+      public:
 	static Encoder_internal_state_t * interruptArgs[ENCODER_ARGLIST_SIZE];
 
 //                           _______         _______       
