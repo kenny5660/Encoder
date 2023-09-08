@@ -71,20 +71,22 @@ typedef struct {
 	IO_REG_TYPE            pin2_bitmask;
 	uint8_t                state;
 	int32_t                position;
+	int32_t                position_old;
+	int32_t                period; // in microseconds
+	int32_t                period_old; // in microseconds
 } Encoder_internal_state_t;
 
 class Encoder
 {
 public:
 	Encoder(pin_size_t pin1, pin_size_t pin2) {
-
-          _pin1 = pin1;
-		  _pin2 = pin2;
-          encoder.pin1_register = PIN_TO_BASEREG(pin1);
-          encoder.pin1_bitmask = PIN_TO_BITMASK(pin1);
-          encoder.pin2_register = PIN_TO_BASEREG(pin2);
-          encoder.pin2_bitmask = PIN_TO_BITMASK(pin2);
-          encoder.position = 0;
+		_pin1 = pin1;
+		_pin2 = pin2;
+		encoder.pin1_register = PIN_TO_BASEREG(pin1);
+		encoder.pin1_bitmask = PIN_TO_BITMASK(pin1);
+		encoder.pin2_register = PIN_TO_BASEREG(pin2);
+		encoder.pin2_bitmask = PIN_TO_BITMASK(pin2);
+		encoder.position = 0;
 	}
 	void begin(){
 		#ifdef INPUT_PULLUP
@@ -125,6 +127,29 @@ public:
 		interrupts();
 		return ret;
 	}
+	/**
+	 * \brief           Reads the encoder speed.
+	 * 
+	 * \return          `int32_t` 
+	 */
+	inline int32_t readSpeed() {
+		if (interrupts_in_use < 2) {
+			noInterrupts();
+			update(&encoder);
+		} else {
+			noInterrupts();
+		}
+		int32_t period = encoder.period;
+		int32_t position = encoder.position;
+		interrupts();
+
+		int32_t ret = position==encoder.position_old ||
+					  period == 0 ? 
+					  0 : 
+					  1000000 / period;
+		encoder.position_old = position;
+		return ret;
+		}
 	inline int32_t readAndReset() {
 		if (interrupts_in_use < 2) {
 			noInterrupts();
@@ -162,59 +187,60 @@ private:
 #ifdef ENCODER_USE_INTERRUPTS
 	uint8_t interrupts_in_use;
 #endif
-    pin_size_t _pin1, _pin2;
+	pin_size_t _pin1, _pin2;
 
-      public:
-	static Encoder_internal_state_t * interruptArgs[ENCODER_ARGLIST_SIZE];
+  public:
+	static Encoder_internal_state_t *interruptArgs[ENCODER_ARGLIST_SIZE];
 
-//                           _______         _______       
-//               Pin1 ______|       |_______|       |______ Pin1
-// negative <---         _______         _______         __      --> positive
-//               Pin2 __|       |_______|       |_______|   Pin2
+	//                           _______         _______
+	//               Pin1 ______|       |_______|       |______ Pin1
+	// negative <---         _______         _______         __      -->
+	// positive
+	//               Pin2 __|       |_______|       |_______|   Pin2
 
-		//	new	new	old	old
-		//	pin2	pin1	pin2	pin1	Result
-		//	----	----	----	----	------
-		//	0	0	0	0	no movement
-		//	0	0	0	1	+1
-		//	0	0	1	0	-1
-		//	0	0	1	1	+2  (assume pin1 edges only)
-		//	0	1	0	0	-1
-		//	0	1	0	1	no movement
-		//	0	1	1	0	-2  (assume pin1 edges only)
-		//	0	1	1	1	+1
-		//	1	0	0	0	+1
-		//	1	0	0	1	-2  (assume pin1 edges only)
-		//	1	0	1	0	no movement
-		//	1	0	1	1	-1
-		//	1	1	0	0	+2  (assume pin1 edges only)
-		//	1	1	0	1	-1
-		//	1	1	1	0	+1
-		//	1	1	1	1	no movement
-/*
-	// Simple, easy-to-read "documentation" version :-)
-	//
-	void update(void) {
-		uint8_t s = state & 3;
-		if (digitalRead(pin1)) s |= 4;
-		if (digitalRead(pin2)) s |= 8;
-		switch (s) {
-			case 0: case 5: case 10: case 15:
-				break;
-			case 1: case 7: case 8: case 14:
-				position++; break;
-			case 2: case 4: case 11: case 13:
-				position--; break;
-			case 3: case 12:
-				position += 2; break;
-			default:
-				position -= 2; break;
-		}
-		state = (s >> 2);
-	}
-*/
+	//	new	new	old	old
+	//	pin2	pin1	pin2	pin1	Result
+	//	----	----	----	----	------
+	//	0	0	0	0	no movement
+	//	0	0	0	1	+1
+	//	0	0	1	0	-1
+	//	0	0	1	1	+2  (assume pin1 edges only)
+	//	0	1	0	0	-1
+	//	0	1	0	1	no movement
+	//	0	1	1	0	-2  (assume pin1 edges only)
+	//	0	1	1	1	+1
+	//	1	0	0	0	+1
+	//	1	0	0	1	-2  (assume pin1 edges only)
+	//	1	0	1	0	no movement
+	//	1	0	1	1	-1
+	//	1	1	0	0	+2  (assume pin1 edges only)
+	//	1	1	0	1	-1
+	//	1	1	1	0	+1
+	//	1	1	1	1	no movement
+	/*
+			// Simple, easy-to-read "documentation" version :-)
+			//
+			void update(void) {
+					uint8_t s = state & 3;
+					if (digitalRead(pin1)) s |= 4;
+					if (digitalRead(pin2)) s |= 8;
+					switch (s) {
+							case 0: case 5: case 10: case 15:
+									break;
+							case 1: case 7: case 8: case 14:
+									position++; break;
+							case 2: case 4: case 11: case 13:
+									position--; break;
+							case 3: case 12:
+									position += 2; break;
+							default:
+									position -= 2; break;
+					}
+					state = (s >> 2);
+			}
+	*/
 
-public:
+  public:
 	// update() is not meant to be called from outside Encoder,
 	// but it is public to allow static interrupt routines.
 	// DO NOT call update() directly from sketches.
@@ -314,12 +340,23 @@ public:
 		if (p1val) state |= 4;
 		if (p2val) state |= 8;
 		arg->state = (state >> 2);
+		//Serial.println(state);
 		switch (state) {
-			case 1: case 7: case 8: case 14:
+			case 7: case 8:
 				arg->position++;
+				arg->period_old = micros();
 				return;
-			case 2: case 4: case 11: case 13:
+			case 14: case 1:
+				arg->position++;
+				arg->period = micros() - arg->period_old;
+				return;
+			case 2: case 13:
 				arg->position--;
+				arg->period_old = micros();
+				return;
+			case 4: case 11:
+				arg->position--;
+				arg->period = -(micros() - arg->period_old);
 				return;
 			case 3: case 12:
 				arg->position += 2;
